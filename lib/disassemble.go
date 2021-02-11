@@ -251,6 +251,34 @@ func disassembleCase(s *OpcodeInStream) *swampopcodeinst.EnumCase {
 	return swampopcodeinst.NewEnumCase(destination, source, jumps)
 }
 
+func disassembleCasePatternMatching(s *OpcodeInStream) *swampopcodeinst.CasePatternMatching {
+	destination := s.readRegister()
+	source := s.readRegister()
+	count := s.readCount()
+
+	var jumps []swampopcodeinst.CasePatternMatchingJump
+
+	var lastLabel *swampopcodetype.Label
+
+	for i := 0; i < count; i++ {
+		literalRegister := s.readRegister()
+
+		var label *swampopcodetype.Label
+
+		if lastLabel != nil {
+			label = s.readLabelOffset(lastLabel.DefinedProgramCounter())
+		} else {
+			label = s.readLabel()
+		}
+
+		lastLabel = label
+		jump := swampopcodeinst.NewCasePatternMatchingJump(literalRegister, label)
+		jumps = append(jumps, jump)
+	}
+
+	return swampopcodeinst.NewCasePatternMatching(destination, source, jumps)
+}
+
 func disassembleRegCopy(s *OpcodeInStream) *swampopcodeinst.RegCopy {
 	destination := s.readRegister()
 	source := s.readRegister()
@@ -328,6 +356,8 @@ func decodeOpcode(cmd swampopcodeinst.Commands, s *OpcodeInStream) swampopcode.I
 		return disassembleGetStruct(s)
 	case swampopcodeinst.CmdEnumCase:
 		return disassembleCase(s)
+	case swampopcodeinst.CmdCasePatternMatching:
+		return disassembleCasePatternMatching(s)
 	case swampopcodeinst.CmdRegCopy:
 		return disassembleRegCopy(s)
 	case swampopcodeinst.CmdCall:
