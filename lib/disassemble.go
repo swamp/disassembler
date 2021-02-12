@@ -115,20 +115,20 @@ func disassembleStringAppend(cmd swampopcodeinst.Commands, s *OpcodeInStream) *s
 	return swampopcodeinst.NewStringAppend(destination, a, b)
 }
 
-func disassembleBinaryOperator(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.IntBinaryOperator {
+func disassembleBinaryOperator(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.BinaryOperator {
 	destination := s.readRegister()
 	a := s.readRegister()
 	b := s.readRegister()
 
-	return swampopcodeinst.NewIntBinaryOperator(cmd, destination, a, b)
+	return swampopcodeinst.NewBinaryOperator(cmd, destination, a, b)
 }
 
-func disassembleBitwiseOperator(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.IntBinaryOperator {
+func disassembleBitwiseOperator(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.BinaryOperator {
 	destination := s.readRegister()
 	a := s.readRegister()
 	b := s.readRegister()
 
-	return swampopcodeinst.NewIntBinaryOperator(cmd, destination, a, b)
+	return swampopcodeinst.NewBinaryOperator(cmd, destination, a, b)
 }
 
 func disassembleBitwiseUnaryOperator(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.IntUnaryOperator {
@@ -217,7 +217,6 @@ func disassembleGetStruct(s *OpcodeInStream) *swampopcodeinst.GetStruct {
 }
 
 func disassembleCase(s *OpcodeInStream) *swampopcodeinst.EnumCase {
-	destination := s.readRegister()
 	source := s.readRegister()
 	count := s.readCount()
 
@@ -248,11 +247,10 @@ func disassembleCase(s *OpcodeInStream) *swampopcodeinst.EnumCase {
 		jumps = append(jumps, jump)
 	}
 
-	return swampopcodeinst.NewEnumCase(destination, source, jumps)
+	return swampopcodeinst.NewEnumCase(source, jumps)
 }
 
 func disassembleCasePatternMatching(s *OpcodeInStream) *swampopcodeinst.CasePatternMatching {
-	destination := s.readRegister()
 	source := s.readRegister()
 	count := s.readCount()
 
@@ -276,7 +274,7 @@ func disassembleCasePatternMatching(s *OpcodeInStream) *swampopcodeinst.CasePatt
 		jumps = append(jumps, jump)
 	}
 
-	return swampopcodeinst.NewCasePatternMatching(destination, source, jumps)
+	return swampopcodeinst.NewCasePatternMatching(source, jumps)
 }
 
 func disassembleRegCopy(s *OpcodeInStream) *swampopcodeinst.RegCopy {
@@ -316,25 +314,29 @@ func disassembleBranchTrue(s *OpcodeInStream) *swampopcodeinst.BranchTrue {
 
 func decodeOpcode(cmd swampopcodeinst.Commands, s *OpcodeInStream) swampopcode.Instruction {
 	switch cmd {
-	case swampopcodeinst.CmdAdd:
+	case swampopcodeinst.CmdIntAdd:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdSub:
+	case swampopcodeinst.CmdIntSub:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdDiv:
+	case swampopcodeinst.CmdIntDiv:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdMul:
+	case swampopcodeinst.CmdIntMul:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdEqual:
+	case swampopcodeinst.CmdIntEqual:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdNotEqual:
+	case swampopcodeinst.CmdIntNotEqual:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdLess:
+	case swampopcodeinst.CmdIntLess:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdLessOrEqual:
+	case swampopcodeinst.CmdIntLessOrEqual:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdGreater:
+	case swampopcodeinst.CmdIntGreater:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdGreaterOrEqual:
+	case swampopcodeinst.CmdIntGreaterOrEqual:
+		return disassembleBinaryOperator(cmd, s)
+	case swampopcodeinst.CmdValueEqual:
+		return disassembleBinaryOperator(cmd, s)
+	case swampopcodeinst.CmdValueNotEqual:
 		return disassembleBinaryOperator(cmd, s)
 	case swampopcodeinst.CmdFixedDiv:
 		return disassembleBinaryOperator(cmd, s)
@@ -378,15 +380,15 @@ func decodeOpcode(cmd swampopcodeinst.Commands, s *OpcodeInStream) swampopcode.I
 		return disassembleBranchFalse(s)
 	case swampopcodeinst.CmdBranchTrue:
 		return disassembleBranchTrue(s)
-	case swampopcodeinst.CmdBitwiseAnd:
+	case swampopcodeinst.CmdIntBitwiseAnd:
 		return disassembleBitwiseOperator(cmd, s)
-	case swampopcodeinst.CmdBitwiseOr:
+	case swampopcodeinst.CmdIntBitwiseOr:
 		return disassembleBitwiseOperator(cmd, s)
-	case swampopcodeinst.CmdBitwiseXor:
+	case swampopcodeinst.CmdIntBitwiseXor:
 		return disassembleBitwiseOperator(cmd, s)
-	case swampopcodeinst.CmdBitwiseNot:
+	case swampopcodeinst.CmdIntBitwiseNot:
 		return disassembleBitwiseUnaryOperator(cmd, s)
-	case swampopcodeinst.CmdLogicalNot:
+	case swampopcodeinst.CmdBoolLogicalNot:
 		return disassembleBitwiseUnaryOperator(cmd, s)
 	}
 
