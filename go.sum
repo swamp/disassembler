@@ -1,2 +1,4 @@
 github.com/swamp/opcodes v0.0.0-20210212094706-61e15159b7f2 h1:GwZ+WbzBt4lrxgr/1hGCg4e0mmXSEyAZpfZGTy2Wkrw=
 github.com/swamp/opcodes v0.0.0-20210212094706-61e15159b7f2/go.mod h1:DCUPUv3e90C9rwpMcgYASQwtprvSwzusvbnTk4IfDU4=
+github.com/swamp/opcodes v0.0.0-20210214095833-e3801acbc388 h1:rv/3biPFRgCFWhE21BJlJ6BGFk1xyXmZbQ+xAHH32oc=
+github.com/swamp/opcodes v0.0.0-20210214095833-e3801acbc388/go.mod h1:DCUPUv3e90C9rwpMcgYASQwtprvSwzusvbnTk4IfDU4=

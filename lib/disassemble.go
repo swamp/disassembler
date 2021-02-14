@@ -390,6 +390,8 @@ func decodeOpcode(cmd swampopcodeinst.Commands, s *OpcodeInStream) swampopcode.I
 		return disassembleBitwiseUnaryOperator(cmd, s)
 	case swampopcodeinst.CmdBoolLogicalNot:
 		return disassembleBitwiseUnaryOperator(cmd, s)
+	case swampopcodeinst.CmdIntNegate:
+		return disassembleBitwiseUnaryOperator(cmd, s)
 	}
 
 	panic(fmt.Sprintf("swamp disassembler: unknown opcode:%v", cmd))
