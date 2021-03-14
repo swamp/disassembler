@@ -145,6 +145,13 @@ func disassembleCreateStruct(s *OpcodeInStream) *swampopcodeinst.CreateStruct {
 	return swampopcodeinst.NewCreateStruct(destination, arguments)
 }
 
+func disassembleStructSplit(s *OpcodeInStream) *swampopcodeinst.StructSplit {
+	source := s.readRegister()
+	destinations := s.readRegisters()
+
+	return swampopcodeinst.NewStructSplit(source, destinations)
+}
+
 func disassembleCreateList(s *OpcodeInStream) *swampopcodeinst.CreateList {
 	destination := s.readRegister()
 	arguments := s.readRegisters()
@@ -392,6 +399,8 @@ func decodeOpcode(cmd swampopcodeinst.Commands, s *OpcodeInStream) swampopcode.I
 		return disassembleBitwiseUnaryOperator(cmd, s)
 	case swampopcodeinst.CmdIntNegate:
 		return disassembleBitwiseUnaryOperator(cmd, s)
+	case swampopcodeinst.CmdStructSplit:
+		return disassembleStructSplit(s)
 	}
 
 	panic(fmt.Sprintf("swamp disassembler: unknown opcode:%v", cmd))
