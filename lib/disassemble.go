@@ -46,6 +46,17 @@ func (s *OpcodeInStream) readUint8() uint8 {
 	return a
 }
 
+func (s *OpcodeInStream) readUint16() uint16 {
+	if s.position+1 == len(s.octets) {
+		panic("swamp disassembler: read too far uint16")
+	}
+
+	high := s.readUint8()
+	low := s.readUint8()
+
+	return uint16((high << 8) | low)
+}
+
 func (s *OpcodeInStream) readCommand() swampopcodeinst.Commands {
 	return swampopcodeinst.Commands(s.readUint8())
 }
@@ -56,6 +67,10 @@ func (s *OpcodeInStream) programCounter() swampopcodetype.ProgramCounter {
 
 func (s *OpcodeInStream) readRegister() swampopcodetype.Register {
 	return swampopcodetype.NewRegister(s.readUint8())
+}
+
+func (s *OpcodeInStream) readTypeIDConstant() uint16 {
+	return s.readUint16()
 }
 
 func (s *OpcodeInStream) readField() swampopcodetype.Field {
@@ -177,10 +192,11 @@ func disassembleCallExternal(s *OpcodeInStream) *swampopcodeinst.CallExternal {
 
 func disassembleCurry(s *OpcodeInStream) *swampopcodeinst.Curry {
 	destination := s.readRegister()
+	typeIDConstant := s.readTypeIDConstant()
 	functionRegister := s.readRegister()
 	arguments := s.readRegisters()
 
-	return swampopcodeinst.NewCurry(destination, functionRegister, arguments)
+	return swampopcodeinst.NewCurry(destination, typeIDConstant, functionRegister, arguments)
 }
 
 func disassembleCreateEnum(s *OpcodeInStream) *swampopcodeinst.Enum {
