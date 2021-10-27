@@ -1,5 +1,5 @@
 module github.com/swamp/disassembler
 
-go 1.15
+go 1.17
 
-require github.com/swamp/opcodes v0.0.0-20210606130226-06c2609148c3
+require github.com/swamp/opcodes v0.0.0-20211027224256-137b09e1c328

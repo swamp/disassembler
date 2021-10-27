@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-package swampdisasm
+package swampdisasm_sp
 
 import (
+	"encoding/binary"
 	"fmt"
 
-	swampopcodeinst "github.com/swamp/opcodes/instruction"
-	swampopcode "github.com/swamp/opcodes/opcode"
-	swampopcodetype "github.com/swamp/opcodes/type"
+	instruction_sp "github.com/swamp/opcodes/instruction_sp"
+	opcode_sp "github.com/swamp/opcodes/opcode_sp"
+	opcode_sp_type "github.com/swamp/opcodes/type"
 )
 
 type Register struct {
@@ -47,217 +48,303 @@ func (s *OpcodeInStream) readUint8() uint8 {
 }
 
 func (s *OpcodeInStream) readUint16() uint16 {
-	if s.position+1 == len(s.octets) {
+	if s.position+2 == len(s.octets) {
 		panic("swamp disassembler: read too far uint16")
 	}
 
-	high := s.readUint8()
-	low := s.readUint8()
+	pointer := binary.LittleEndian.Uint16(s.octets[s.position : s.position+2])
 
-	return uint16((high << 8) | low)
+	s.position += 2
+
+	return pointer
 }
 
-func (s *OpcodeInStream) readCommand() swampopcodeinst.Commands {
-	return swampopcodeinst.Commands(s.readUint8())
+func (s *OpcodeInStream) readUint32() uint32 {
+	if s.position+4 == len(s.octets) {
+		panic("swamp disassembler: read too far uint32")
+	}
+
+	pointer := binary.LittleEndian.Uint32(s.octets[s.position : s.position+4])
+
+	s.position += 4
+
+	return pointer
 }
 
-func (s *OpcodeInStream) programCounter() swampopcodetype.ProgramCounter {
-	return swampopcodetype.NewProgramCounter(uint16(s.position))
+func (s *OpcodeInStream) readCommand() instruction_sp.Commands {
+	return instruction_sp.Commands(s.readUint8())
 }
 
-func (s *OpcodeInStream) readRegister() swampopcodetype.Register {
-	return swampopcodetype.NewRegister(s.readUint8())
+func (s *OpcodeInStream) programCounter() opcode_sp_type.ProgramCounter {
+	return opcode_sp_type.NewProgramCounter(uint16(s.position))
 }
 
 func (s *OpcodeInStream) readTypeIDConstant() uint16 {
 	return s.readUint16()
 }
 
-func (s *OpcodeInStream) readField() swampopcodetype.Field {
-	return swampopcodetype.NewField(s.readUint8())
-}
-
 func (s *OpcodeInStream) readCount() int {
 	return int(s.readUint8())
 }
 
-func (s *OpcodeInStream) readLabel() *swampopcodetype.Label {
-	delta := uint16(s.readUint8())
+func (s *OpcodeInStream) readArgOffsetSize() opcode_sp_type.ArgOffsetSize {
+	return opcode_sp_type.ArgOffsetSize{
+		Offset: s.readUint16(),
+		Size:   s.readUint16(),
+	}
+}
+
+func (s *OpcodeInStream) readArgOffsetSizeAlign() opcode_sp_type.ArgOffsetSizeAlign {
+	return opcode_sp_type.ArgOffsetSizeAlign{
+		Offset: s.readUint16(),
+		Size:   s.readUint16(),
+		Align:  s.readUint8(),
+	}
+}
+
+func (s *OpcodeInStream) readInt32() int32 {
+	return int32(s.readUint32())
+}
+
+func (s *OpcodeInStream) readBoolean() bool {
+	return s.readUint8() != 0
+}
+
+func (s *OpcodeInStream) readItemSize() opcode_sp_type.StackRange {
+	return opcode_sp_type.StackRange(s.readUint16())
+}
+
+func (s *OpcodeInStream) readAlign() opcode_sp_type.MemoryAlign {
+	return opcode_sp_type.MemoryAlign(s.readUint8())
+}
+
+func (s *OpcodeInStream) readLabel() *opcode_sp_type.Label {
+	delta := s.readUint16()
 	resultingPosition := s.programCounter().Add(delta)
 
-	return swampopcodetype.NewLabelDefined("", resultingPosition)
+	return opcode_sp_type.NewLabelDefined("", resultingPosition)
 }
 
-func (s *OpcodeInStream) readLabelOffset(offset swampopcodetype.ProgramCounter) *swampopcodetype.Label {
-	delta := uint16(s.readUint8())
+func (s *OpcodeInStream) readLabelOffset(offset opcode_sp_type.ProgramCounter) *opcode_sp_type.Label {
+	delta := s.readUint16()
 	resultingPosition := offset.Add(delta)
 
-	return swampopcodetype.NewLabelDefined("offset", resultingPosition)
+	return opcode_sp_type.NewLabelDefined("offset", resultingPosition)
 }
 
-func (s *OpcodeInStream) readRegisters() []swampopcodetype.Register {
-	count := s.readCount()
-	array := make([]swampopcodetype.Register, count)
+func (s *OpcodeInStream) readSourceStackPosition() opcode_sp_type.SourceStackPosition {
+	pointer := s.readUint32()
+	return opcode_sp_type.SourceStackPosition(pointer)
+}
 
+func (s *OpcodeInStream) readSourceStackPositionRange() opcode_sp_type.SourceStackPositionRange {
+	pointer := s.readUint32()
+	size := s.readUint16()
+	if size == 0 {
+		panic("disassemble: we can not allow zero size in range")
+	}
+	return opcode_sp_type.SourceStackPositionRange{
+		Position: opcode_sp_type.SourceStackPosition(pointer),
+		Range:    opcode_sp_type.SourceStackRange(size),
+	}
+}
+
+func (s *OpcodeInStream) readSourceStackPositions() []opcode_sp_type.SourceStackPosition {
+	count := s.readCount()
+	targetArray := make([]opcode_sp_type.SourceStackPosition, count)
 	for i := 0; i < count; i++ {
-		array[i] = s.readRegister()
+		targetArray[i] = s.readSourceStackPosition()
 	}
 
-	return array
+	return targetArray
 }
 
-func disassembleListConj(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.ListConj {
-	destination := s.readRegister()
-	list := s.readRegister()
-	item := s.readRegister()
-
-	return swampopcodeinst.NewListConj(destination, item, list)
+func (s *OpcodeInStream) readTargetStackPosition() opcode_sp_type.TargetStackPosition {
+	pointer := s.readUint32()
+	return opcode_sp_type.TargetStackPosition(pointer)
 }
 
-func disassembleListAppend(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.ListAppend {
-	destination := s.readRegister()
-	a := s.readRegister()
-	b := s.readRegister()
-
-	return swampopcodeinst.NewListAppend(destination, a, b)
+func (s *OpcodeInStream) readSourceDynamicMemoryPosition() opcode_sp_type.SourceDynamicMemoryPosition {
+	pointer := s.readUint32()
+	return opcode_sp_type.SourceDynamicMemoryPosition(pointer)
 }
 
-func disassembleStringAppend(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.StringAppend {
-	destination := s.readRegister()
-	a := s.readRegister()
-	b := s.readRegister()
+func disassembleListConj(s *OpcodeInStream) *instruction_sp.ListConj {
+	destination := s.readTargetStackPosition()
+	list := s.readSourceStackPosition()
+	item := s.readSourceStackPosition()
 
-	return swampopcodeinst.NewStringAppend(destination, a, b)
+	return instruction_sp.NewListConj(destination, item, list)
 }
 
-func disassembleBinaryOperator(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.BinaryOperator {
-	destination := s.readRegister()
-	a := s.readRegister()
-	b := s.readRegister()
+func disassembleListAppend(s *OpcodeInStream) *instruction_sp.ListAppend {
+	destination := s.readTargetStackPosition()
+	a := s.readSourceStackPosition()
+	b := s.readSourceStackPosition()
 
-	return swampopcodeinst.NewBinaryOperator(cmd, destination, a, b)
+	return instruction_sp.NewListAppend(destination, a, b)
 }
 
-func disassembleBitwiseOperator(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.BinaryOperator {
-	destination := s.readRegister()
-	a := s.readRegister()
-	b := s.readRegister()
+func disassembleStringAppend(s *OpcodeInStream) *instruction_sp.StringAppend {
+	destination := s.readTargetStackPosition()
+	a := s.readSourceStackPosition()
+	b := s.readSourceStackPosition()
 
-	return swampopcodeinst.NewBinaryOperator(cmd, destination, a, b)
+	return instruction_sp.NewStringAppend(destination, a, b)
 }
 
-func disassembleBitwiseUnaryOperator(cmd swampopcodeinst.Commands, s *OpcodeInStream) *swampopcodeinst.IntUnaryOperator {
-	destination := s.readRegister()
-	a := s.readRegister()
+func disassembleBinaryOperator(cmd instruction_sp.Commands, s *OpcodeInStream) *instruction_sp.BinaryOperator {
+	destination := s.readTargetStackPosition()
+	a := s.readSourceStackPosition()
+	b := s.readSourceStackPosition()
 
-	return swampopcodeinst.NewIntUnaryOperator(cmd, destination, a)
+	return instruction_sp.NewBinaryOperator(cmd, destination, a, b)
 }
 
-func disassembleCreateStruct(s *OpcodeInStream) *swampopcodeinst.CreateStruct {
-	destination := s.readRegister()
-	arguments := s.readRegisters()
+func disassembleStringBinaryOperator(cmd instruction_sp.Commands, s *OpcodeInStream) *instruction_sp.BinaryOperator {
+	destination := s.readTargetStackPosition()
+	a := s.readSourceStackPosition()
+	b := s.readSourceStackPosition()
 
-	return swampopcodeinst.NewCreateStruct(destination, arguments)
+	return instruction_sp.NewBinaryOperator(cmd, destination, a, b)
 }
 
-func disassembleStructSplit(s *OpcodeInStream) *swampopcodeinst.StructSplit {
-	source := s.readRegister()
-	destinations := s.readRegisters()
+func disassembleEnumBinaryOperator(cmd instruction_sp.Commands, s *OpcodeInStream) *instruction_sp.BinaryOperator {
+	destination := s.readTargetStackPosition()
+	a := s.readSourceStackPosition()
+	b := s.readSourceStackPosition()
 
-	return swampopcodeinst.NewStructSplit(source, destinations)
+	return instruction_sp.NewBinaryOperator(cmd, destination, a, b)
 }
 
-func disassembleCreateList(s *OpcodeInStream) *swampopcodeinst.CreateList {
-	destination := s.readRegister()
-	arguments := s.readRegisters()
+func disassembleBitwiseOperator(cmd instruction_sp.Commands, s *OpcodeInStream) *instruction_sp.BinaryOperator {
+	destination := s.readTargetStackPosition()
+	a := s.readSourceStackPosition()
+	b := s.readSourceStackPosition()
 
-	return swampopcodeinst.NewCreateList(destination, arguments)
+	return instruction_sp.NewBinaryOperator(cmd, destination, a, b)
 }
 
-func disassembleCall(s *OpcodeInStream) *swampopcodeinst.Call {
-	destination := s.readRegister()
-	functionRegister := s.readRegister()
-	arguments := s.readRegisters()
+func disassembleBitwiseUnaryOperator(cmd instruction_sp.Commands, s *OpcodeInStream) *instruction_sp.IntUnaryOperator {
+	destination := s.readTargetStackPosition()
+	a := s.readSourceStackPosition()
 
-	return swampopcodeinst.NewCall(destination, functionRegister, arguments)
+	return instruction_sp.NewIntUnaryOperator(cmd, destination, a)
 }
 
-func disassembleCallExternal(s *OpcodeInStream) *swampopcodeinst.CallExternal {
-	destination := s.readRegister()
-	functionRegister := s.readRegister()
-	arguments := s.readRegisters()
+func disassembleLoadInteger(s *OpcodeInStream) *instruction_sp.LoadInteger {
+	destination := s.readTargetStackPosition()
+	a := s.readInt32()
 
-	return swampopcodeinst.NewCallExternal(destination, functionRegister, arguments)
+	return instruction_sp.NewLoadInteger(destination, a)
 }
 
-func disassembleCurry(s *OpcodeInStream) *swampopcodeinst.Curry {
-	destination := s.readRegister()
+func disassembleLoadRune(s *OpcodeInStream) *instruction_sp.LoadRune {
+	destination := s.readTargetStackPosition()
+	shortRune := s.readUint8()
+
+	return instruction_sp.NewLoadRune(destination, instruction_sp.ShortRune(shortRune))
+}
+
+func disassembleLoadBoolean(s *OpcodeInStream) *instruction_sp.LoadBool {
+	destination := s.readTargetStackPosition()
+	a := s.readBoolean()
+
+	return instruction_sp.NewLoadBool(destination, a)
+}
+
+func disassembleSetEnum(s *OpcodeInStream) *instruction_sp.SetEnum {
+	destination := s.readTargetStackPosition()
+	a := s.readUint8()
+
+	return instruction_sp.NewSetEnum(destination, a)
+}
+
+func disassembleLoadZeroMemoryPointer(s *OpcodeInStream) *instruction_sp.LoadZeroMemoryPointer {
+	destination := s.readTargetStackPosition()
+	source := s.readSourceDynamicMemoryPosition()
+
+	return instruction_sp.NewLoadZeroMemoryPointer(destination, source)
+}
+
+func disassembleCreateList(s *OpcodeInStream) *instruction_sp.CreateList {
+	destination := s.readTargetStackPosition()
+	itemSize := s.readItemSize()
+	memoryAlign := s.readAlign()
+	arguments := s.readSourceStackPositions()
+
+	return instruction_sp.NewCreateList(destination, itemSize, memoryAlign, arguments)
+}
+
+func disassembleCreateArray(s *OpcodeInStream) *instruction_sp.CreateArray {
+	destination := s.readTargetStackPosition()
+	itemSize := s.readItemSize()
+	memoryAlign := s.readAlign()
+	arguments := s.readSourceStackPositions()
+
+	return instruction_sp.NewCreateArray(destination, itemSize, memoryAlign, arguments)
+}
+
+func disassembleCall(s *OpcodeInStream) *instruction_sp.Call {
+	newStackPointer := s.readTargetStackPosition()
+	functionRegister := s.readSourceStackPosition()
+
+	return instruction_sp.NewCall(newStackPointer, functionRegister)
+}
+
+func disassembleCallExternal(s *OpcodeInStream) *instruction_sp.CallExternal {
+	newStackPointer := s.readTargetStackPosition()
+	functionRegister := s.readSourceStackPosition()
+
+	return instruction_sp.NewCallExternal(newStackPointer, functionRegister)
+}
+
+func disassembleCallExternalWithSizes(s *OpcodeInStream) *instruction_sp.CallExternalWithSizes {
+	newStackPointer := s.readTargetStackPosition()
+	functionRegister := s.readSourceStackPosition()
+	count := s.readCount()
+	targetArgs := make([]opcode_sp_type.ArgOffsetSize, count)
+	for i := 0; i < count; i++ {
+		targetArgs[i] = s.readArgOffsetSize()
+	}
+
+	return instruction_sp.NewCallExternalWithSizes(newStackPointer, functionRegister, targetArgs)
+}
+
+func disassembleCallExternalWithSizesAlign(s *OpcodeInStream) *instruction_sp.CallExternalWithSizesAlign {
+	newStackPointer := s.readTargetStackPosition()
+	functionRegister := s.readSourceStackPosition()
+	count := s.readCount()
+	targetArgs := make([]opcode_sp_type.ArgOffsetSizeAlign, count)
+	for i := 0; i < count; i++ {
+		targetArgs[i] = s.readArgOffsetSizeAlign()
+	}
+
+	return instruction_sp.NewCallExternalWithSizesAlign(newStackPointer, functionRegister, targetArgs)
+}
+
+func disassembleCurry(s *OpcodeInStream) *instruction_sp.Curry {
+	destination := s.readTargetStackPosition()
 	typeIDConstant := s.readTypeIDConstant()
-	functionRegister := s.readRegister()
-	arguments := s.readRegisters()
+	firstParameterAlign := s.readAlign()
+	functionRegister := s.readSourceStackPosition()
+	arguments := s.readSourceStackPositionRange()
 
-	return swampopcodeinst.NewCurry(destination, typeIDConstant, functionRegister, arguments)
+	return instruction_sp.NewCurry(destination, typeIDConstant, firstParameterAlign, functionRegister, arguments)
 }
 
-func disassembleCreateEnum(s *OpcodeInStream) *swampopcodeinst.Enum {
-	destination := s.readRegister()
-	enumFieldIndex := s.readCount()
-	arguments := s.readRegisters()
-
-	return swampopcodeinst.NewEnum(destination, enumFieldIndex, arguments)
-}
-
-func disassembleUpdateStruct(s *OpcodeInStream) *swampopcodeinst.UpdateStruct {
-	destination := s.readRegister()
-	source := s.readRegister()
+func disassembleEnumCase(s *OpcodeInStream) *instruction_sp.EnumCase {
+	source := s.readSourceStackPosition()
 	count := s.readCount()
 
-	var assignments []swampopcodeinst.CopyToFieldInfo
+	var jumps []instruction_sp.EnumCaseJump
 
-	for i := 0; i < count; i++ {
-		fieldIndex := s.readField()
-		sourceRegister := s.readRegister()
-		assignment := swampopcodeinst.CopyToFieldInfo{Target: fieldIndex, Source: sourceRegister}
-		assignments = append(assignments, assignment)
-	}
-
-	return swampopcodeinst.NewUpdateStruct(destination, source, assignments)
-}
-
-func disassembleGetStruct(s *OpcodeInStream) *swampopcodeinst.GetStruct {
-	destination := s.readRegister()
-	source := s.readRegister()
-	count := s.readCount()
-
-	var lookups []swampopcodetype.Field
-
-	for i := 0; i < count; i++ {
-		fieldIndex := s.readField()
-		lookups = append(lookups, fieldIndex)
-	}
-
-	return swampopcodeinst.NewGetStruct(destination, source, lookups)
-}
-
-func disassembleCase(s *OpcodeInStream) *swampopcodeinst.EnumCase {
-	source := s.readRegister()
-	count := s.readCount()
-
-	var jumps []swampopcodeinst.EnumCaseJump
-
-	var lastLabel *swampopcodetype.Label
+	var lastLabel *opcode_sp_type.Label
 
 	for i := 0; i < count; i++ {
 		enumValue := s.readUint8()
-		argCount := s.readCount()
 
-		var args []swampopcodetype.Register
-
-		for j := 0; j < argCount; j++ {
-			args = append(args, s.readRegister())
-		}
-
-		var label *swampopcodetype.Label
+		var label *opcode_sp_type.Label
 
 		if lastLabel != nil {
 			label = s.readLabelOffset(lastLabel.DefinedProgramCounter())
@@ -266,25 +353,36 @@ func disassembleCase(s *OpcodeInStream) *swampopcodeinst.EnumCase {
 		}
 
 		lastLabel = label
-		jump := swampopcodeinst.NewEnumCaseJump(enumValue, args, label)
+		jump := instruction_sp.NewEnumCaseJump(enumValue, label)
 		jumps = append(jumps, jump)
 	}
 
-	return swampopcodeinst.NewEnumCase(source, jumps)
+	return instruction_sp.NewEnumCase(source, jumps)
 }
 
-func disassembleCasePatternMatching(s *OpcodeInStream) *swampopcodeinst.CasePatternMatching {
-	source := s.readRegister()
+/*
+	var matchingType instruction_sp.PatternMatchingType
+	switch cmd {
+	case instruction_sp.CmdPatternMatchingInt:
+		matchingType = instruction_sp.PatternMatchingTypeInt
+	case instruction_sp.CmdPatternMatchingString:
+		matchingType = instruction_sp.PatternMatchingTypeString
+	default:
+		panic(fmt.Errorf("unknown matching type %v", cmd))
+	}
+*/
+func disassemblePatternMatchingInt(cmd instruction_sp.Commands, s *OpcodeInStream) *instruction_sp.PatternMatchingInt {
+	source := s.readSourceStackPosition()
 	count := s.readCount()
 
-	var jumps []swampopcodeinst.CasePatternMatchingJump
+	var jumps []instruction_sp.EnumCasePatternMatchingIntJump
 
-	var lastLabel *swampopcodetype.Label
+	var lastLabel *opcode_sp_type.Label
 
 	for i := 0; i < count; i++ {
-		literalRegister := s.readRegister()
+		matchInteger := s.readInt32()
 
-		var label *swampopcodetype.Label
+		var label *opcode_sp_type.Label
 
 		if lastLabel != nil {
 			label = s.readLabelOffset(lastLabel.DefinedProgramCounter())
@@ -293,135 +391,149 @@ func disassembleCasePatternMatching(s *OpcodeInStream) *swampopcodeinst.CasePatt
 		}
 
 		lastLabel = label
-		jump := swampopcodeinst.NewCasePatternMatchingJump(literalRegister, label)
+		jump := instruction_sp.NewEnumCasePatternMatchingIntJump(matchInteger, label)
 		jumps = append(jumps, jump)
 	}
 
-	return swampopcodeinst.NewCasePatternMatching(source, jumps)
+	defaultLabel := s.readLabelOffset(lastLabel.DefinedProgramCounter())
+
+	return instruction_sp.NewPatternMatchingInt(source, jumps, defaultLabel)
 }
 
-func disassembleRegCopy(s *OpcodeInStream) *swampopcodeinst.RegCopy {
-	destination := s.readRegister()
-	source := s.readRegister()
+func disassembleMemoryCopy(s *OpcodeInStream) *instruction_sp.MemoryCopy {
+	destination := s.readTargetStackPosition()
+	source := s.readSourceStackPositionRange()
 
-	return swampopcodeinst.NewRegCopy(destination, source)
+	return instruction_sp.NewMemoryCopy(destination, source)
 }
 
-func disassembleTailCall(s *OpcodeInStream) *swampopcodeinst.TailCall {
-	return nil
+func disassembleTailCall(s *OpcodeInStream) *instruction_sp.TailCall {
+	return instruction_sp.NewTailCall()
 }
 
-func disassembleReturn(s *OpcodeInStream) *swampopcodeinst.Return {
-	return swampopcodeinst.NewReturn()
+func disassembleReturn(s *OpcodeInStream) *instruction_sp.Return {
+	return instruction_sp.NewReturn()
 }
 
-func disassembleJump(s *OpcodeInStream) *swampopcodeinst.Jump {
+func disassembleJump(s *OpcodeInStream) *instruction_sp.Jump {
 	label := s.readLabel()
 
-	return swampopcodeinst.NewJump(label)
+	return instruction_sp.NewJump(label)
 }
 
-func disassembleBranchFalse(s *OpcodeInStream) *swampopcodeinst.BranchFalse {
-	test := s.readRegister()
+func disassembleBranchFalse(s *OpcodeInStream) *instruction_sp.BranchFalse {
+	test := s.readSourceStackPosition()
 	label := s.readLabel()
 
-	return swampopcodeinst.NewBranchFalse(test, label)
+	return instruction_sp.NewBranchFalse(test, label)
 }
 
-func disassembleBranchTrue(s *OpcodeInStream) *swampopcodeinst.BranchTrue {
-	test := s.readRegister()
+func disassembleBranchTrue(s *OpcodeInStream) *instruction_sp.BranchTrue {
+	test := s.readSourceStackPosition()
 	label := s.readLabel()
 
-	return swampopcodeinst.NewBranchTrue(test, label)
+	return instruction_sp.NewBranchTrue(test, label)
 }
 
-func decodeOpcode(cmd swampopcodeinst.Commands, s *OpcodeInStream) swampopcode.Instruction {
+func decodeOpcode(cmd instruction_sp.Commands, s *OpcodeInStream) opcode_sp.Instruction {
 	switch cmd {
-	case swampopcodeinst.CmdIntAdd:
+	case instruction_sp.CmdIntAdd:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntSub:
+	case instruction_sp.CmdIntSub:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntDiv:
+	case instruction_sp.CmdIntDiv:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntMul:
+	case instruction_sp.CmdIntMul:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntEqual:
+	case instruction_sp.CmdIntEqual:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntNotEqual:
+	case instruction_sp.CmdIntNotEqual:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntLess:
+	case instruction_sp.CmdIntLess:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntLessOrEqual:
+	case instruction_sp.CmdIntLessOrEqual:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntGreater:
+	case instruction_sp.CmdIntGreater:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntGreaterOrEqual:
+	case instruction_sp.CmdIntGreaterOrEqual:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdValueEqual:
+	case instruction_sp.CmdFixedDiv:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdValueNotEqual:
+	case instruction_sp.CmdFixedMul:
 		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdFixedDiv:
-		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdFixedMul:
-		return disassembleBinaryOperator(cmd, s)
-	case swampopcodeinst.CmdListConj:
-		return disassembleListConj(cmd, s)
-	case swampopcodeinst.CmdListAppend:
-		return disassembleListAppend(cmd, s)
-	case swampopcodeinst.CmdStringAppend:
-		return disassembleStringAppend(cmd, s)
-	case swampopcodeinst.CmdCreateStruct:
-		return disassembleCreateStruct(s)
-	case swampopcodeinst.CmdCreateList:
+	case instruction_sp.CmdListConj:
+		return disassembleListConj(s)
+	case instruction_sp.CmdListAppend:
+		return disassembleListAppend(s)
+	case instruction_sp.CmdStringAppend:
+		return disassembleStringAppend(s)
+	case instruction_sp.CmdCreateList:
 		return disassembleCreateList(s)
-	case swampopcodeinst.CmdUpdateStruct:
-		return disassembleUpdateStruct(s)
-	case swampopcodeinst.CmdStructGet:
-		return disassembleGetStruct(s)
-	case swampopcodeinst.CmdEnumCase:
-		return disassembleCase(s)
-	case swampopcodeinst.CmdCasePatternMatching:
-		return disassembleCasePatternMatching(s)
-	case swampopcodeinst.CmdRegCopy:
-		return disassembleRegCopy(s)
-	case swampopcodeinst.CmdCall:
+	case instruction_sp.CmdCreateArray:
+		return disassembleCreateArray(s)
+	case instruction_sp.CmdEnumCase:
+		return disassembleEnumCase(s)
+	case instruction_sp.CmdPatternMatchingInt:
+		return disassemblePatternMatchingInt(cmd, s)
+	case instruction_sp.CmdPatternMatchingString:
+		panic("not implemented")
+	case instruction_sp.CmdCopyMemory:
+		return disassembleMemoryCopy(s)
+	case instruction_sp.CmdCall:
 		return disassembleCall(s)
-	case swampopcodeinst.CmdCallExternal:
+	case instruction_sp.CmdCallExternal:
 		return disassembleCallExternal(s)
-	case swampopcodeinst.CmdTailCall:
+	case instruction_sp.CmdCallExternalWithSizes:
+		return disassembleCallExternalWithSizes(s)
+	case instruction_sp.CmdCallExternalWithSizesAlign:
+		return disassembleCallExternalWithSizesAlign(s)
+	case instruction_sp.CmdTailCall:
 		return disassembleTailCall(s)
-	case swampopcodeinst.CmdCurry:
+	case instruction_sp.CmdCurry:
 		return disassembleCurry(s)
-	case swampopcodeinst.CmdCreateEnum:
-		return disassembleCreateEnum(s)
-	case swampopcodeinst.CmdReturn:
+	case instruction_sp.CmdReturn:
 		return disassembleReturn(s)
-	case swampopcodeinst.CmdJump:
+	case instruction_sp.CmdJump:
 		return disassembleJump(s)
-	case swampopcodeinst.CmdBranchFalse:
+	case instruction_sp.CmdBranchFalse:
 		return disassembleBranchFalse(s)
-	case swampopcodeinst.CmdBranchTrue:
+	case instruction_sp.CmdBranchTrue:
 		return disassembleBranchTrue(s)
-	case swampopcodeinst.CmdIntBitwiseAnd:
+	case instruction_sp.CmdIntBitwiseAnd:
 		return disassembleBitwiseOperator(cmd, s)
-	case swampopcodeinst.CmdIntBitwiseOr:
+	case instruction_sp.CmdIntBitwiseOr:
 		return disassembleBitwiseOperator(cmd, s)
-	case swampopcodeinst.CmdIntBitwiseXor:
+	case instruction_sp.CmdIntBitwiseXor:
 		return disassembleBitwiseOperator(cmd, s)
-	case swampopcodeinst.CmdIntBitwiseNot:
+	case instruction_sp.CmdIntBitwiseNot:
 		return disassembleBitwiseUnaryOperator(cmd, s)
-	case swampopcodeinst.CmdBoolLogicalNot:
+	case instruction_sp.CmdBoolLogicalNot:
 		return disassembleBitwiseUnaryOperator(cmd, s)
-	case swampopcodeinst.CmdIntNegate:
+	case instruction_sp.CmdIntNegate:
 		return disassembleBitwiseUnaryOperator(cmd, s)
-	case swampopcodeinst.CmdStructSplit:
-		return disassembleStructSplit(s)
+	case instruction_sp.CmdLoadInteger:
+		return disassembleLoadInteger(s)
+	case instruction_sp.CmdLoadRune:
+		return disassembleLoadRune(s)
+	case instruction_sp.CmdLoadBoolean:
+		return disassembleLoadBoolean(s)
+	case instruction_sp.CmdLoadZeroMemoryPointer:
+		return disassembleLoadZeroMemoryPointer(s)
+	case instruction_sp.CmdSetEnum:
+		return disassembleSetEnum(s)
+	case instruction_sp.CmdStringEqual:
+		return disassembleStringBinaryOperator(cmd, s)
+	case instruction_sp.CmdStringNotEqual:
+		return disassembleStringBinaryOperator(cmd, s)
+	case instruction_sp.CmdEnumEqual:
+		return disassembleEnumBinaryOperator(cmd, s)
+	case instruction_sp.CmdEnumNotEqual:
+		return disassembleEnumBinaryOperator(cmd, s)
 	}
 
 	panic(fmt.Sprintf("swamp disassembler: unknown opcode:%v", cmd))
 
-	//return nil
+	// return nil
 }
 
 func Disassemble(octets []byte) []string {
@@ -433,9 +545,9 @@ func Disassemble(octets []byte) []string {
 		startPc := s.programCounter()
 		cmd := s.readCommand()
 
-		// fmt.Printf("disasembling :%s (%02x)\n", swampopcode.OpcodeToName(cmd), cmd)
+		// log.Printf("disasembling :%s (%02x)\n", instruction_sp.OpcodeToMnemonic(cmd), cmd)
 		args := decodeOpcode(cmd, s)
-		line := fmt.Sprintf("%02x: %v", startPc.Value(), args)
+		line := fmt.Sprintf("%04x: %v", startPc.Value(), args)
 		lines = append(lines, line)
 	}
 
