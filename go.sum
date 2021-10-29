@@ -6,3 +6,5 @@ github.com/swamp/opcodes v0.0.0-20211027230642-1eaa56f9a54d h1:q/85f5NzaEPUHQpY5
 github.com/swamp/opcodes v0.0.0-20211027230642-1eaa56f9a54d/go.mod h1:DCUPUv3e90C9rwpMcgYASQwtprvSwzusvbnTk4IfDU4=
 github.com/swamp/opcodes v0.0.0-20211029101647-517b996370af h1:w3adyJ2TN31BMat80DViLBqcNx9DGnML7hui0c7W/gw=
 github.com/swamp/opcodes v0.0.0-20211029101647-517b996370af/go.mod h1:m9QgadE+ACQ9mYFIuoVWX/+3Ol4ivU+Dnb/LcDtWB5w=
+github.com/swamp/opcodes v0.0.0-20211029103012-d27f905dcd8f h1:LWs+iIHoZaWByyB14QCOajAi4myMT7EHjMkPACFdEUY=
+github.com/swamp/opcodes v0.0.0-20211029103012-d27f905dcd8f/go.mod h1:m9QgadE+ACQ9mYFIuoVWX/+3Ol4ivU+Dnb/LcDtWB5w=
