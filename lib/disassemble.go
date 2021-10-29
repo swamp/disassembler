@@ -501,6 +501,10 @@ func decodeOpcode(cmd instruction_sp.Commands, s *OpcodeInStream) opcode_sp.Inst
 		return disassembleBranchTrue(s)
 	case instruction_sp.CmdIntBitwiseAnd:
 		return disassembleBitwiseOperator(cmd, s)
+	case instruction_sp.CmdIntBitwiseShiftLeft:
+		return disassembleBitwiseOperator(cmd, s)
+	case instruction_sp.CmdIntBitwiseShiftRight:
+		return disassembleBitwiseOperator(cmd, s)
 	case instruction_sp.CmdIntBitwiseOr:
 		return disassembleBitwiseOperator(cmd, s)
 	case instruction_sp.CmdIntBitwiseXor:
