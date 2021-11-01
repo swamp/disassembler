@@ -173,8 +173,10 @@ func disassembleListConj(s *OpcodeInStream) *instruction_sp.ListConj {
 	destination := s.readTargetStackPosition()
 	list := s.readSourceStackPosition()
 	item := s.readSourceStackPosition()
+	itemSize := s.readItemSize()
+	itemAlign := s.readAlign()
 
-	return instruction_sp.NewListConj(destination, item, list)
+	return instruction_sp.NewListConj(destination, item, itemSize, itemAlign, list)
 }
 
 func disassembleListAppend(s *OpcodeInStream) *instruction_sp.ListAppend {
