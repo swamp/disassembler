@@ -445,6 +445,8 @@ func decodeOpcode(cmd instruction_sp.Commands, s *OpcodeInStream) opcode_sp.Inst
 		return disassembleBinaryOperator(cmd, s)
 	case instruction_sp.CmdIntDiv:
 		return disassembleBinaryOperator(cmd, s)
+	case instruction_sp.CmdIntRemainder:
+		return disassembleBinaryOperator(cmd, s)
 	case instruction_sp.CmdIntMul:
 		return disassembleBinaryOperator(cmd, s)
 	case instruction_sp.CmdIntEqual:
