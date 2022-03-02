@@ -266,8 +266,9 @@ func disassembleLoadBoolean(s *OpcodeInStream) *instruction_sp.LoadBool {
 func disassembleSetEnum(s *OpcodeInStream) *instruction_sp.SetEnum {
 	destination := s.readTargetStackPosition()
 	a := s.readUint8()
+	itemSize := s.readItemSize()
 
-	return instruction_sp.NewSetEnum(destination, a)
+	return instruction_sp.NewSetEnum(destination, a, itemSize)
 }
 
 func disassembleLoadZeroMemoryPointer(s *OpcodeInStream) *instruction_sp.LoadZeroMemoryPointer {
