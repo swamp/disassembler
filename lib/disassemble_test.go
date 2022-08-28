@@ -12,16 +12,16 @@ import (
 )
 
 func TestSomething(t *testing.T) {
-	s := "030501010003060201000d030506030701010103080201010e04070801000203040a"
+	s := "17000000000100000002000000000b00270000000002000000010006"
 
 	octets, err := hex.DecodeString(s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stringLines := Disassemble(octets)
+	stringLines := Disassemble(octets, true)
 	output := fmt.Sprintf("%v", stringLines)
 
-	const expectedOutput = `[00: get 5, 1, [#0] 05: get 6, 2, [#0] 0a: add 3,5,6 0e: get 7, 1, [#1] 13: get 8, 2, [#1] 18: sub 4,7,8 1c: crs 0 [3 4] 21: ret]`
+	const expectedOutput = `[0000: not 0,1 0009: brfa 0 [label @001b] 0010: cpy 0,(2:1) 001b: ret]`
 
 	fmt.Println(output)
 
