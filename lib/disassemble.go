@@ -12,6 +12,7 @@ import (
 	instruction_sp "github.com/swamp/opcodes/instruction_sp"
 	opcode_sp "github.com/swamp/opcodes/opcode_sp"
 	opcode_sp_type "github.com/swamp/opcodes/type"
+	"log"
 )
 
 type Register struct {
@@ -557,7 +558,7 @@ func decodeOpcode(cmd instruction_sp.Commands, s *OpcodeInStream) opcode_sp.Inst
 	// return nil
 }
 
-func Disassemble(octets []byte) []string {
+func Disassemble(octets []byte, verbosity bool) []string {
 	var lines []string
 
 	s := NewOpcodeInStream(octets)
@@ -566,7 +567,9 @@ func Disassemble(octets []byte) []string {
 		startPc := s.programCounter()
 		cmd := s.readCommand()
 
-		// log.Printf("disasembling :%s (%02x)\n", instruction_sp.OpcodeToMnemonic(cmd), cmd)
+		if verbosity {
+			log.Printf("disasembling :%s (%02x)\n", instruction_sp.OpcodeToMnemonic(cmd), cmd)
+		}
 		args := decodeOpcode(cmd, s)
 		line := fmt.Sprintf("%04x: %v", startPc.Value(), args)
 		lines = append(lines, line)
